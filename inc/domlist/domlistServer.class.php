@@ -1,5 +1,5 @@
 <?php
-class domlist_server {
+class domlistServer {
 	
 	/**
 	 * DB tabellen
@@ -13,9 +13,9 @@ class domlist_server {
 	
 	var $params = array();	// beim request uebergebene parameter
 	
-	var $response_status_field = 'markus';
+	var $responseStatusField = 'markus';
 	
-	function domlist_server() {
+	function domlistServer() {
 		$this->util = ICE::create('util');
 	}
 	
@@ -30,13 +30,13 @@ class domlist_server {
 		//-- REST request
 		if (isset($_REQUEST['rawaction'])) {
 			$this->params = $_REQUEST;
-			$action = strtolower($_REQUEST['rawaction']);
+			$method = 'rawaction' . ucfirst(strtolower($this->params['rawaction']));
 			
-			if (method_exists($this, 'rawaction_' . $action)) {
-				$this->{'rawaction_' . $action}();
+			if (method_exists($this, $method)) {
+				$this->$method();
 			}
 			else {
-				$this->_return_error('unknown rawaction');
+				$this->returnError('unknown rawaction');
 			}
 			exit;
 		}
@@ -48,13 +48,13 @@ class domlist_server {
 	 * alle vorhandenen listen liefern
 	 * @return 
 	 */
-	public function rawaction_lists() {
+	public function rawactionLists() {
 		
 		$tbl_fields = array('id', 'title', 'short', 'mobile', 'email');
 		$sql_fields = implode(', ', $tbl_fields);
 		
 		//-- wenn ein (gueltiger) user uebergeben wurde, filtern wir die listen nach diesem user
-		if (is_int($uid = $this->auth_user())) {
+		if (is_int($uid = $this->authUser())) {
 			//-- alle listen des user auslesen
 			$usr_lists = $this->_q("SELECT lid FROM {$this->db_tbl_user_list} WHERE mid=$uid");
 			$_in_lists = array();
@@ -77,7 +77,7 @@ class domlist_server {
 		
 		$response = array(
 			'response' => array(
-				$this->response_status_field => 1,
+				$this->responseStatusField => 1,
 				'lists' => array(
 				)
 			)
@@ -87,7 +87,7 @@ class domlist_server {
 			$response['response']['lists']['list'] = $lists;
 		}
 		
-		$this->_return_response($response);
+		$this->returnResponse($response);
 		
 	}
 	
@@ -96,13 +96,18 @@ class domlist_server {
 	 * infos, mitglieder und deren status einer liste liefern
 	 * @return 
 	 */
-	public function rawaction_users() {
+	public function rawactionUsers() {
 		//-- listen-id muss uebergeben werden
+		if (!isset($this->params['list'])) {
+			$this->returnError('missing list');
+			return;
+		}
+
 		$lid = (int)$this->params['list'];
 		
 		$list = $this->_q("SELECT * FROM {$this->db_tbl_list} WHERE id=$lid");
 		if ($list->nr() != 1) {
-			$this->_return_error('unknown list: ' . $lid);
+			$this->returnError('unknown list: ' . $lid);
 			return;
 		}
 		
@@ -122,7 +127,7 @@ class domlist_server {
 		
 		$response = array(
 			'response' => array(
-				$this->response_status_field => 1,
+				$this->responseStatusField => 1,
 				'list' => array(
 					'users' => array(
 					),
@@ -134,7 +139,7 @@ class domlist_server {
 			$response['response']['list']['users']['user'] = $users;
 		}
 		
-		$this->_return_response($response);
+		$this->returnResponse($response);
 	}
 	
 	
@@ -142,37 +147,42 @@ class domlist_server {
 	 * status eines users setzen
 	 * @return 
 	 */
-	public function rawaction_setstatus() {
+	public function rawactionSetstatus() {
 		//-- wir brauchen die listen-id
+		if (!isset($this->params['list'])) {
+			$this->returnError('missing list');
+			return;
+		}
+
 		$lid = (int)$this->params['list'];
 		
 		$list = $this->_q("SELECT * FROM {$this->db_tbl_list} WHERE id=$lid");
 		if ($list->nr() != 1) {
-			$this->_return_error('unknown list: ' . $lid);
+			$this->returnError('unknown list: ' . $lid);
 			return;
 		}
 		
 		//-- wir brauchen eine status-nr (0-2)
 		if (!isset($this->params['status'])) {
-			$this->_return_error('missing status');
+			$this->returnError('missing status');
 			return;
 		}
 		$status = (int)$this->params['status'];
 		if ($status < 0 || $status > 3) {
-			$this->_return_error('invalid status');
+			$this->returnError('invalid status');
 			return;
 		}
 		
 		//-- der user muss sich identifizieren
-		if (!is_int($uid = $this->auth_user())) {
-			$this->_return_error('unknown user: ' . $uid);
+		if (!is_int($uid = $this->authUser())) {
+			$this->returnError('unknown user: ' . $uid);
 			return;			
 		}
 		
 		//-- der user muss in dieser liste sein
 		$check = $this->_q("SELECT count(*) AS cnt FROM {$this->db_tbl_user_list} WHERE lid=$lid AND mid=$uid");
 		if ($check->f('cnt') != 1) {
-			$this->_return_error('user not in list');
+			$this->returnError('user not in list');
 			return;
 		}
 		
@@ -182,10 +192,10 @@ class domlist_server {
 		
 		$response = array(
 			'response' => array(
-				$this->response_status_field => 1,
+				$this->responseStatusField => 1,
 			),
 		);
-		$this->_return_response($response);
+		$this->returnResponse($response);
 	}
 	
 	
@@ -193,7 +203,7 @@ class domlist_server {
 	 * user autentifizieren. z.zt. ueber handy-nr oder mail-adr
 	 * @return 
 	 */
-	public function auth_user() {
+	public function authUser() {
 		if (!isset($this->params['useridfield'])) return 'useridfield missing';
 		if (!isset($this->params['userid'])) return 'userid missing';
 		
@@ -221,15 +231,15 @@ class domlist_server {
 	 * @return 
 	 * @param object $msg
 	 */
-	private function _return_error($msg) {
-		$repsonse = array(
+	public function returnError($msg) {
+		$response = array(
 			'response' => array(
-				$this->response_status_field => 0,
+				$this->responseStatusField => 0,
 				'error' => $msg,
 			)
 		);
 		
-		echo $this->_return_response($repsonse);
+		echo $this->returnResponse($response);
 	}
 	
 	
@@ -238,12 +248,12 @@ class domlist_server {
 	 * @return 
 	 * @param object $response
 	 */
-	private function _return_response($response) {
+	public function returnResponse($response) {
 		if (!is_array($response)) return false;
 		
-		switch($this->_get_response_format()) {
+		switch($this->getResponseFormat()) {
 			case 'xml':
-				include_once(dirname(__FILE__) . '/class.xml_construct.php');
+				include_once(dirname(__FILE__) . '/../extern/class.xml_construct.php');
 				$dom = new XmlDomConstruct('1.0', 'utf-8');
 				$dom->fromMixed($response);
 				$out = $dom->saveXML();
@@ -254,7 +264,7 @@ class domlist_server {
 				break;
 				
 			case 'json':
-				include_once(dirname(__FILE__) . '/class.json.php');
+				include_once(dirname(__FILE__) . '/../extern/class.json.php');
 				$json = new Services_JSON();
 				$out  = $json->encode($response);
 				
@@ -264,7 +274,7 @@ class domlist_server {
 				break;
 				
 			case 'yaml':
-				include_once(dirname(__FILE__) . '/class.spyc.php');
+				include_once(dirname(__FILE__) . '/../extern/class.spyc.php');
 				$out = Spyc::YAMLDump($response);
 				
 				//header('Content-type: text/yaml');
@@ -282,8 +292,8 @@ class domlist_server {
 	 * format der ausgabe bestimmen (xml, json, ...)
 	 * @return 
 	 */
-	private function _get_response_format() {
-		$fmt = strtolower($this->params['format']);
+	public function getResponseFormat() {
+		$fmt = isset($this->params['format']) ? strtolower($this->params['format']) : 'xml';
 		
 		static $supported = array('xml', 'json', 'yaml');
 		
@@ -296,7 +306,7 @@ class domlist_server {
 	 * @return object
 	 * @param string $sql
 	 */
-	private function _q($sql) {
+	protected function _q($sql) {
 		return ICE::query($sql);
 	}
 	
